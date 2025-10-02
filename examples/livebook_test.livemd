@@ -1,0 +1,142 @@
+# Pololu A-Star 32U4 - Test with Elixir
+
+```elixir
+# Add the dependency
+Mix.install([
+  {:pololu_a_star_32u4}
+])
+```
+
+## LED Test
+
+```elixir
+# Basic LED test
+PololuAStar32u4.set_leds(yellow: true, green: false, red: false)
+Process.sleep(1000)
+
+PololuAStar32u4.set_leds(yellow: false, green: true, red: false)
+Process.sleep(1000)
+
+PololuAStar32u4.set_leds(yellow: false, green: false, red: true)
+Process.sleep(1000)
+
+# Turn off all LEDs
+PololuAStar32u4.set_leds(yellow: false, green: false, red: false)
+```
+
+## Button Test
+
+```elixir
+# Read button states
+buttons = PololuAStar32u4.read_buttons()
+IO.inspect(buttons, label: "Button states")
+```
+
+## Battery Test
+
+```elixir
+# Read battery voltage
+battery_mv = PololuAStar32u4.read_battery_mv()
+battery_v = battery_mv / 1000.0
+IO.puts("Battery voltage: #{battery_v}V (#{battery_mv}mV)")
+```
+
+## Motor Test
+
+```elixir
+# Motor test - WARNING: your robot will move!
+# Start with low values
+
+# Move forward slowly
+PololuAStar32u4.set_motors(left: 100, right: 100)
+Process.sleep(1000)
+
+# Stop
+PololuAStar32u4.set_motors(left: 0, right: 0)
+Process.sleep(1000)
+
+# Turn right
+PololuAStar32u4.set_motors(left: 100, right: -100)
+Process.sleep(500)
+
+# Stop
+PololuAStar32u4.set_motors(left: 0, right: 0)
+```
+
+## Analog Sensor Test
+
+```elixir
+# Read analog values
+analog_values = PololuAStar32u4.read_analog()
+IO.inspect(analog_values, label: "Analog values")
+
+# Convert to percentage (0-100%)
+percentages = Enum.map(analog_values, fn val -> Float.round(val / 1023 * 100, 1) end)
+IO.inspect(percentages, label: "Percentages")
+```
+
+## Encoder Test
+
+```elixir
+# Read encoders
+{left_enc, right_enc} = PololuAStar32u4.read_encoders()
+IO.puts("Left encoder: #{left_enc}")
+IO.puts("Right encoder: #{right_enc}")
+```
+
+## Audio Test
+
+```elixir
+# Play a simple melody
+PololuAStar32u4.play_song("c4e4g4c5")
+```
+
+## Continuous Monitoring
+
+```elixir
+# Monitoring loop (stop the cell to stop monitoring)
+defmodule RobotMonitor do
+  def start do
+    spawn(fn -> monitor_loop() end)
+  end
+
+  defp monitor_loop do
+    # Read sensors
+    buttons = PololuAStar32u4.read_buttons()
+    battery = PololuAStar32u4.read_battery_mv()
+    {left_enc, right_enc} = PololuAStar32u4.read_encoders()
+
+    # Display info
+    IO.puts("=== Robot Status ===")
+    IO.puts("Battery: #{battery}mV")
+    IO.puts("Buttons: #{inspect(buttons)}")
+    IO.puts("Encoders: L=#{left_enc}, R=#{right_enc}")
+    IO.puts("")
+
+    # Wait 2 seconds
+    Process.sleep(2000)
+
+    # Continue loop
+    monitor_loop()
+  end
+end
+
+# Start monitoring
+pid = RobotMonitor.start()
+IO.puts("Monitoring started (PID: #{inspect(pid)})")
+```
+
+## Safety
+
+```elixir
+# Emergency function - stop motors
+defmodule Emergency do
+  def stop_all do
+    PololuAStar32u4.set_motors(left: 0, right: 0)
+    PololuAStar32u4.set_leds(yellow: false, green: false, red: true)
+    IO.puts("🚨 EMERGENCY STOP - Motors stopped!")
+  end
+end
+
+# Use Emergency.stop_all() in case of problems
+```
