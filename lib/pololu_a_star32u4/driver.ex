@@ -147,6 +147,25 @@ defmodule PololuAStar32u4.Driver do
 
   def handle_cast(:stop_song, state), do: {:noreply, state}
 
+  @impl true
+  def handle_info(:poll_buttons, %{ref: ref, buttons: last, subscribers: subs} = state) do
+    {:ok, <<a, b, c>>} = read(ref, 3, 3)
+    current = %{a: a == 1, b: b == 1, c: c == 1}
+
+    if current != last do
+      Enum.each(subs, fn pid -> send(pid, {:buttons_changed, current}) end)
+    end
+
+    {:noreply, %{state | buttons: current}}
+  end
+
+  def handle_info({:DOWN, _mref, :process, pid, _}, state) do
+    {:noreply, %{state | subscribers: List.delete(state.subscribers, pid)}}
+  end
+
+  def handle_info(:song_finished, state), do: {:noreply, %{state | song_task: nil, stop_flag: false}}
+
+
   defp do_play_song(ref, song, parent) do
     chunks =
       String.codepoints(song)
