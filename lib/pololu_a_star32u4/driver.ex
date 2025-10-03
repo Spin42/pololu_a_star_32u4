@@ -186,9 +186,15 @@ defmodule PololuAStar32u4.Driver do
   end
 
   defp read(ref, offset, size) do
-    :ok = I2C.write(ref, @i2c_addr, <<offset>>)
-    Process.sleep(@i2c_delay)
-    I2C.read(ref, @i2c_addr, size)
+    case I2C.write(ref, @i2c_addr, <<offset>>) do
+      :ok ->
+        Process.sleep(@i2c_delay)
+        I2C.read(ref, @i2c_addr, size)
+
+      {:error, reason} ->
+        Logger.error("I2C write failed at offset #{offset}: #{inspect(reason)}")
+        {:error, reason}
+    end
   end
 
   defp write(ref, offset, payload) do
@@ -198,7 +204,7 @@ defmodule PololuAStar32u4.Driver do
         :ok
 
       {:error, reason} ->
-        Logger.error("I2C write failed: #{inspect(reason)}")
+        Logger.error("I2C write failed at offset #{offset}: #{inspect(reason)}")
         emergency_stop(ref)
         {:error, reason}
     end
