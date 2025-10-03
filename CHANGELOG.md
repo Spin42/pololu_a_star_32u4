@@ -24,6 +24,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Technical Details
 - I2C address: 0x14
 - Default I2C bus: "i2c-1"
-- Automatic application startup
 - Register-based communication protocol
 - 1ms delay between I2C operations

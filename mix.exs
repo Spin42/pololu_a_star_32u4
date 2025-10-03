@@ -43,7 +43,7 @@ defmodule PololuAStar32u4.MixProject do
         "GitHub" => "https://github.com/Spin42/pololu_a_star_32u4",
         "Docs" => "https://hexdocs.pm/pololu_a_star_32u4"
       },
-      maintainers: ["CHANGE-THIS-NAME"]
+      maintainers: ["Marc Lainez (Spin42)"]
     ]
   end
 

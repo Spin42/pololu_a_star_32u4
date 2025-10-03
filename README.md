@@ -135,11 +135,8 @@ The library implements the A-Star 32U4 RPi slave protocol:
 
 ## Error Handling
 
-The library includes robust error handling:
-
 - I2C connection failures are logged and reported
 - Graceful degradation when hardware is unavailable
-- Configurable auto-start for development environments
 
 ## Contributing
 
