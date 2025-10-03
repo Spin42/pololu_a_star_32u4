@@ -192,9 +192,16 @@ defmodule PololuAStar32u4.Driver do
   end
 
   defp write(ref, offset, payload) do
-    :ok = I2C.write(ref, @i2c_addr, [offset | :binary.bin_to_list(payload)])
-    Process.sleep(@i2c_delay)
-    :ok
+    case I2C.write(ref, @i2c_addr, [offset | :binary.bin_to_list(payload)]) do
+      :ok ->
+        Process.sleep(@i2c_delay)
+        :ok
+
+      {:error, reason} ->
+        Logger.error("I2C write failed: #{inspect(reason)}")
+        emergency_stop(ref)
+        {:error, reason}
+    end
   end
 
   defp play_notes(ref, notes) do
@@ -208,6 +215,11 @@ defmodule PololuAStar32u4.Driver do
       false -> :ok
       true -> wait_until_done(ref)
     end
+  end
+
+  defp emergency_stop(ref) do
+    I2C.write(ref, @i2c_addr, [6 | :binary.bin_to_list(<<0::little-signed-16, 0::little-signed-16>>)])
+    Logger.warning("Emergency motor stop issued due to I2C error")
   end
 
   defp read_flag(ref) do
