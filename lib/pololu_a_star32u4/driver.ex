@@ -65,7 +65,7 @@ defmodule PololuAStar32u4.Driver do
 
   @doc false
   def play_song(song) do
-    GenServer.call(__MODULE__, {:play_song, song})
+    GenServer.call(__MODULE__, {:play_song, song}, 30_000)
   end
 
   @doc false
