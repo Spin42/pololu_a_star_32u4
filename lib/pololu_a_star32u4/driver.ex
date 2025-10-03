@@ -27,6 +27,7 @@ defmodule PololuAStar32u4.Driver do
   @i2c_addr 0x14  # A-Star 32U4 I2C slave address
   @i2c_bus "i2c-1"  # Default I2C bus on Raspberry Pi
   @i2c_delay 1  # Delay in milliseconds between I2C operations
+  @poll_interval 50  # ms, for button scanning
 
   @doc """
   Starts the Driver GenServer.
@@ -46,6 +47,11 @@ defmodule PololuAStar32u4.Driver do
   @doc false
   def read_buttons() do
     GenServer.call(__MODULE__, :read_buttons)
+  end
+
+  @doc false
+  def subscribe_buttons() do
+    GenServer.call(__MODULE__, {:subscribe, self()})
   end
 
   @doc false
@@ -74,11 +80,12 @@ defmodule PololuAStar32u4.Driver do
   end
 
   @impl true
-  def init(state) do
+  def init(_) do
     case I2C.open(@i2c_bus) do
       {:ok, ref} ->
         Logger.info("PololuAStar32u4.Driver started on bus #{@i2c_bus}")
-        {:ok, Map.put(state, :ref, ref)}
+        :timer.send_interval(@poll_interval, :poll_buttons)
+        {:ok, %{ref: ref, buttons: %{a: false, b: false, c: false}, subscribers: [], song_task: nil, stop_flag: false}}
       {:error, reason} ->
         Logger.error("Failed to open I2C bus #{@i2c_bus}: #{inspect(reason)}")
         {:stop, reason}
@@ -112,23 +119,51 @@ defmodule PololuAStar32u4.Driver do
     {:reply, values, state}
   end
 
-  def handle_call({:play_song, song}, _from, %{ref: ref} = state) do
+  def handle_call({:subscribe, pid}, _from, state) do
+    Process.monitor(pid)
+    {:reply, :ok, %{state | subscribers: [pid | state.subscribers]}}
+  end
+
+  def handle_call(:read_encoders, _from, %{ref: ref} = state) do
+    {:ok, <<l::little-signed-16, r::little-signed-16>>} = read(ref, 39, 4)
+    {:reply, {l, r}, state}
+  end
+
+  def handle_call(:stop_flag?, _from, %{stop_flag: flag} = state),
+    do: {:reply, flag, state}
+
+  @impl true
+  def handle_cast({:play_song, song}, %{ref: ref, song_task: nil} = state) do
+    task = Task.start(fn -> do_play_song(ref, song, self()) end) |> elem(1)
+    {:noreply, %{state | song_task: task, stop_flag: false}}
+  end
+
+  def handle_cast(:stop_song, %{ref: ref, song_task: task} = state) when not is_nil(task) do
+    Logger.info("Stopping song playback…")
+    payload = <<0>> <> String.duplicate(<<0>>, 14)
+    write(ref, 24, payload)
+    {:noreply, %{state | stop_flag: true}}
+  end
+
+  def handle_cast(:stop_song, state), do: {:noreply, state}
+
+  defp do_play_song(ref, song, parent) do
     chunks =
       String.codepoints(song)
       |> Enum.chunk_every(14)
       |> Enum.map(&Enum.join/1)
 
     Enum.each(chunks, fn chunk ->
-      play_notes(ref, chunk)
-      wait_until_done(ref)
+      if GenServer.call(__MODULE__, :stop_flag?) do
+        {:halt, :stopped}
+      else
+        play_notes(ref, chunk)
+        wait_until_done(ref)
+        {:cont, :ok}
+      end
     end)
 
-    {:reply, :ok, state}
-  end
-
-  def handle_call(:read_encoders, _from, %{ref: ref} = state) do
-    {:ok, <<l::little-signed-16, r::little-signed-16>>} = read(ref, 39, 4)
-    {:reply, {l, r}, state}
+    send(parent, :song_finished)
   end
 
   defp read(ref, offset, size) do
